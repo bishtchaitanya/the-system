@@ -4,11 +4,13 @@ import Onboarding from './pages/Onboarding'
 import Dashboard from './pages/Dashboard'
 import Stats from './pages/Stats'
 import Settings from './pages/Settings'
+import Raids from './pages/Raids'
 import LoadingScreen from './components/LoadingScreen'
 
-function NavBar({ current, onChange }) {
+function NavBar({ current, onChange, hasActiveRaid }) {
   const tabs = [
     { id: 'dashboard', label: 'Quests', icon: '⚔' },
+    { id: 'raids', label: 'Raids', icon: '🏯' },
     { id: 'stats', label: 'Record', icon: '📊' },
     { id: 'settings', label: 'Config', icon: '⚙' },
   ]
@@ -24,6 +26,7 @@ function NavBar({ current, onChange }) {
     }}>
       {tabs.map(tab => {
         const active = current === tab.id
+        const showDot = tab.id === 'raids' && hasActiveRaid && current !== 'raids'
         return (
           <button
             key={tab.id}
@@ -39,6 +42,7 @@ function NavBar({ current, onChange }) {
               alignItems: 'center',
               gap: 3,
               fontFamily: 'inherit',
+              position: 'relative',
             }}
           >
             <span style={{ fontSize: 18 }}>{tab.icon}</span>
@@ -50,6 +54,17 @@ function NavBar({ current, onChange }) {
             }}>
               {tab.label}
             </span>
+            {showDot && (
+              <span style={{
+                position: 'absolute',
+                top: 8,
+                right: '28%',
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: '#ef4444',
+              }} />
+            )}
           </button>
         )
       })}
@@ -62,6 +77,9 @@ function App() {
     hunter, habits, logs,
     completeHabit, createHunter,
     addHabit, resetAll, updateHunterName,
+    removeHabit, activeRaids, clearedRaids,
+    unusedArtifacts, startRaid, useArtifact,
+    raids, artifacts,
   } = useStore()
   const [page, setPage] = useState('dashboard')
   const [loading, setLoading] = useState(true)
@@ -83,6 +101,19 @@ function App() {
           logs={logs}
           completeHabit={completeHabit}
           addHabit={addHabit}
+          removeHabit={removeHabit}
+          activeRaids={activeRaids}
+          onGoToRaids={() => setPage('raids')}
+        />
+      )}
+      {page === 'raids' && (
+        <Raids
+          hunter={hunter}
+          activeRaids={activeRaids}
+          clearedRaids={clearedRaids}
+          unusedArtifacts={unusedArtifacts}
+          startRaid={startRaid}
+          useArtifact={useArtifact}
         />
       )}
       {page === 'stats' && (
@@ -99,7 +130,11 @@ function App() {
           onNameChange={updateHunterName}
         />
       )}
-      <NavBar current={page} onChange={setPage} />
+      <NavBar
+        current={page}
+        onChange={setPage}
+        hasActiveRaid={activeRaids.length > 0}
+      />
     </>
   )
 }

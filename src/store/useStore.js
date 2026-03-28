@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { RANKS, STREAK_MULTIPLIERS, DIFFICULTY } from '../data/habits'
+import { ARTIFACTS } from '../data/raids'
 
 const STORAGE_KEY = 'the-system-data'
 
@@ -7,12 +8,18 @@ const defaultState = {
   hunter: null,
   habits: [],
   logs: [],
+  raids: [],
+  artifacts: [],
 }
 
 function loadState() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? JSON.parse(saved) : defaultState
+    const parsed = saved ? JSON.parse(saved) : defaultState
+    return {
+      ...defaultState,
+      ...parsed,
+    }
   } catch {
     return defaultState
   }
@@ -36,10 +43,11 @@ export function getStreakMultiplier(streakDays) {
   return match ? match.multiplier : 1.0
 }
 
-export function calculateXP(difficulty, streakDays) {
+export function calculateXP(difficulty, streakDays, doubleXP = false) {
   const base = DIFFICULTY[difficulty]?.xp || 10
   const multiplier = getStreakMultiplier(streakDays)
-  return Math.round(base * multiplier)
+  const total = Math.round(base * multiplier)
+  return doubleXP ? total * 2 : total
 }
 
 export function useStore() {
@@ -49,8 +57,23 @@ export function useStore() {
     saveState(state)
   }, [state])
 
+  // Check and update raid progress on habit completion
+  function updateRaidProgress(state) {
+    const now = new Date()
+    return state.raids.map(raid => {
+      if (raid.status !== 'active') return raid
+      const end = new Date(raid.endsAt)
+      if (now > end && raid.currentHP > 0) {
+        return { ...raid, status: 'failed' }
+      }
+      return raid
+    })
+  }
+
   function completeHabit(habitId) {
     const today = new Date().toDateString()
+    const yesterday = new Date(Date.now() - 86400000).toDateString()
+
     const alreadyDone = state.logs.some(
       l => l.habitId === habitId && new Date(l.completedAt).toDateString() === today
     )
@@ -59,27 +82,170 @@ export function useStore() {
     const habit = state.habits.find(h => h.id === habitId)
     if (!habit) return
 
-    const streakDays = state.hunter?.streakDays || 0
-    const xpEarned = calculateXP(habit.difficulty, streakDays)
+    const currentStreak = state.hunter?.streakDays || 0
+    const lastActiveDay = state.hunter?.lastActiveDay || null
+
+    let newStreak
+    if (lastActiveDay === today) {
+      newStreak = currentStreak
+    } else if (lastActiveDay === yesterday) {
+      newStreak = currentStreak + 1
+    } else {
+      newStreak = 1
+    }
+
+    // Check for active Mana Vial artifact
+    const hasManaVial = state.artifacts.some(
+      a => a.id === 'MANA_VIAL' && !a.used
+    )
+
+    const xpEarned = calculateXP(habit.difficulty, newStreak, hasManaVial)
+
+    // Use Mana Vial if active
+    let updatedArtifacts = state.artifacts
+    if (hasManaVial) {
+      updatedArtifacts = state.artifacts.map(a =>
+        a.id === 'MANA_VIAL' && !a.used ? { ...a, used: true } : a
+      )
+    }
 
     const newLog = {
       id: Date.now(),
       habitId,
       completedAt: new Date().toISOString(),
       xpEarned,
-      streakAtTime: streakDays,
+      streakAtTime: newStreak,
     }
+
+    // Deal damage to active raids (1 damage per habit completion)
+    const updatedRaids = state.raids.map(raid => {
+      if (raid.status !== 'active') return raid
+      const newHP = Math.max(0, raid.currentHP - 1)
+      if (newHP === 0) {
+        return { ...raid, currentHP: 0, status: 'cleared' }
+      }
+      return { ...raid, currentHP: newHP }
+    })
+
+    // Check for newly cleared raids and grant rewards
+    const newlyCleared = updatedRaids.filter(
+      r => r.status === 'cleared' &&
+      state.raids.find(old => old.instanceId === r.instanceId)?.status === 'active'
+    )
+
+    let bonusXP = 0
+    let newArtifactGrants = []
+    newlyCleared.forEach(raid => {
+      bonusXP += raid.reward.xp
+      if (raid.reward.artifact) {
+        newArtifactGrants.push({
+          instanceId: Date.now() + Math.random(),
+          id: raid.reward.artifact,
+          earnedAt: new Date().toISOString(),
+          used: false,
+          fromRaid: raid.name,
+        })
+      }
+    })
 
     setState(prev => ({
       ...prev,
       hunter: {
         ...prev.hunter,
-        totalXP: (prev.hunter?.totalXP || 0) + xpEarned,
+        totalXP: (prev.hunter?.totalXP || 0) + xpEarned + bonusXP,
+        streakDays: newStreak,
+        lastActiveDay: today,
       },
       logs: [...prev.logs, newLog],
+      raids: updatedRaids,
+      artifacts: [...updatedArtifacts, ...newArtifactGrants],
     }))
 
-    return xpEarned
+    return { xpEarned, bonusXP, newlyCleared }
+  }
+
+  function startRaid(boss, type) {
+    const now = new Date()
+    const endsAt = new Date(now)
+    if (type === 'weekly') {
+      endsAt.setDate(endsAt.getDate() + 7)
+    } else {
+      endsAt.setDate(endsAt.getDate() + 30)
+    }
+
+    const newRaid = {
+      instanceId: Date.now(),
+      ...boss,
+      type,
+      status: 'active',
+      currentHP: boss.hp,
+      maxHP: boss.hp,
+      startedAt: now.toISOString(),
+      endsAt: endsAt.toISOString(),
+    }
+
+    setState(prev => ({
+      ...prev,
+      raids: [...prev.raids, newRaid],
+    }))
+  }
+
+  function useArtifact(instanceId, targetHabitId = null) {
+    const artifact = state.artifacts.find(
+      a => a.instanceId === instanceId && !a.used
+    )
+    if (!artifact) return
+
+    const artifactDef = ARTIFACTS[artifact.id]
+    let updates = {}
+
+    if (artifact.id === 'SHADOW_CRYSTAL') {
+      // Extend streak by protecting yesterday
+      const yesterday = new Date(Date.now() - 86400000).toDateString()
+      updates = {
+        hunter: {
+          ...state.hunter,
+          lastActiveDay: yesterday,
+        },
+      }
+    }
+
+    if (artifact.id === 'RANK_TALISMAN') {
+      updates = {
+        hunter: {
+          ...state.hunter,
+          totalXP: (state.hunter?.totalXP || 0) + 500,
+        },
+      }
+    }
+
+    if (artifact.id === 'HUNTERS_SEAL' && targetHabitId) {
+      const today = new Date().toDateString()
+      const habit = state.habits.find(h => h.id === targetHabitId)
+      if (habit) {
+        const sealLog = {
+          id: Date.now(),
+          habitId: targetHabitId,
+          completedAt: new Date().toISOString(),
+          xpEarned: 0,
+          streakAtTime: state.hunter?.streakDays || 0,
+          sealUsed: true,
+        }
+        updates = {
+          logs: [...state.logs, sealLog],
+        }
+      }
+    }
+
+    setState(prev => ({
+      ...prev,
+      ...updates,
+      hunter: updates.hunter || prev.hunter,
+      logs: updates.logs || prev.logs,
+      artifacts: prev.artifacts.map(a =>
+        a.instanceId === instanceId ? { ...a, used: true } : a
+      ),
+    }))
   }
 
   function createHunter(hunterData) {
@@ -90,6 +256,7 @@ export function useStore() {
         name: hunterData.name,
         totalXP: hunterData.startingXP || 0,
         streakDays: 0,
+        lastActiveDay: null,
         title: hunterData.title || 'Awakened One',
         createdAt: new Date().toISOString(),
         goals: hunterData.goals || [],
@@ -108,24 +275,46 @@ export function useStore() {
     }
     setState(prev => ({ ...prev, habits: [...prev.habits, newHabit] }))
   }
-    function updateHunterName(name) {
-        setState(prev => ({
-        ...prev,
-        hunter: { ...prev.hunter, name },
-        }))
-    }
+
+  function removeHabit(habitId) {
+    setState(prev => ({
+      ...prev,
+      habits: prev.habits.filter(h => h.id !== habitId),
+      logs: prev.logs.filter(l => l.habitId !== habitId),
+    }))
+  }
+
+  function updateHunterName(name) {
+    setState(prev => ({
+      ...prev,
+      hunter: { ...prev.hunter, name },
+    }))
+  }
+
   function resetAll() {
     setState(defaultState)
   }
+
+  const activeRaids = state.raids.filter(r => r.status === 'active')
+  const clearedRaids = state.raids.filter(r => r.status === 'cleared')
+  const unusedArtifacts = state.artifacts.filter(a => !a.used)
 
   return {
     hunter: state.hunter,
     habits: state.habits,
     logs: state.logs,
+    raids: state.raids,
+    activeRaids,
+    clearedRaids,
+    artifacts: state.artifacts,
+    unusedArtifacts,
     completeHabit,
     createHunter,
     addHabit,
+    removeHabit,
     resetAll,
     updateHunterName,
+    startRaid,
+    useArtifact,
   }
 }

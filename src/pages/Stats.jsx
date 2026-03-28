@@ -277,6 +277,12 @@ export default function Stats({ hunter, habits, logs }) {
           sub="habits being tracked"
           color="#a78bfa"
         />
+        <StatCard
+          label="CURRENT STREAK"
+          value={`${hunter.streakDays ?? 0}d`}
+          sub={`Best: ${bestStreak} days`}
+          color="#f59e0b"
+        />
       </div>
 
       {/* Top habit */}
