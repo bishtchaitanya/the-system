@@ -12,6 +12,39 @@ const defaultState = {
   artifacts: [],
 }
 
+const ACCOUNTS_KEY = 'the-system-accounts'
+const SESSION_KEY = 'the-system-session'
+
+function loadAccounts() {
+  try {
+    const saved = localStorage.getItem(ACCOUNTS_KEY)
+    return saved ? JSON.parse(saved) : []
+  } catch {
+    return []
+  }
+}
+
+function saveAccounts(accounts) {
+  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts))
+}
+
+function loadSession() {
+  try {
+    const saved = localStorage.getItem(SESSION_KEY)
+    return saved ? JSON.parse(saved) : null
+  } catch {
+    return null
+  }
+}
+
+function saveSession(session) {
+  if (session) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  } else {
+    localStorage.removeItem(SESSION_KEY)
+  }
+}
+
 function loadState() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
@@ -55,6 +88,14 @@ export function useStore() {
 
   useEffect(() => {
     saveState(state)
+    const currentSession = loadSession()
+    if (currentSession) {
+      const accounts = loadAccounts()
+      const updated = accounts.map(a =>
+        a.id === currentSession.accountId ? { ...a, data: state } : a
+      )
+      saveAccounts(updated)
+    }
   }, [state])
 
   // Check and update raid progress on habit completion
@@ -290,7 +331,58 @@ export function useStore() {
       hunter: { ...prev.hunter, name },
     }))
   }
+  function signup(email, password, displayName) {
+    const accounts = loadAccounts()
+    const exists = accounts.find(a => a.email.toLowerCase() === email.toLowerCase())
+    if (exists) return { error: 'An account with this email already exists.' }
 
+    const newAccount = {
+      id: Date.now(),
+      email: email.toLowerCase(),
+      password,
+      displayName,
+      createdAt: new Date().toISOString(),
+      data: defaultState,
+    }
+
+    const updated = [...accounts, newAccount]
+    saveAccounts(updated)
+
+    const session = { accountId: newAccount.id, email: newAccount.email, displayName }
+    saveSession(session)
+
+    return { success: true, session }
+  }
+
+  function login(email, password) {
+    const accounts = loadAccounts()
+    const account = accounts.find(
+      a => a.email.toLowerCase() === email.toLowerCase() && a.password === password
+    )
+    if (!account) return { error: 'Invalid email or password.' }
+
+    const session = { accountId: account.id, email: account.email, displayName: account.displayName }
+    saveSession(session)
+
+    // Load this account's data into state
+    setState(account.data || defaultState)
+
+    return { success: true, session }
+  }
+
+  function logout() {
+    // Save current state to account before logging out
+    const session = loadSession()
+    if (session) {
+      const accounts = loadAccounts()
+      const updated = accounts.map(a =>
+        a.id === session.accountId ? { ...a, data: state } : a
+      )
+      saveAccounts(updated)
+    }
+    saveSession(null)
+    setState(defaultState)
+  }
   function resetAll() {
     setState(defaultState)
   }
@@ -298,6 +390,8 @@ export function useStore() {
   const activeRaids = state.raids.filter(r => r.status === 'active')
   const clearedRaids = state.raids.filter(r => r.status === 'cleared')
   const unusedArtifacts = state.artifacts.filter(a => !a.used)
+
+  const session = loadSession()
 
   return {
     hunter: state.hunter,
@@ -308,6 +402,7 @@ export function useStore() {
     clearedRaids,
     artifacts: state.artifacts,
     unusedArtifacts,
+    session,
     completeHabit,
     createHunter,
     addHabit,
@@ -316,5 +411,8 @@ export function useStore() {
     updateHunterName,
     startRaid,
     useArtifact,
+    signup,
+    login,
+    logout,
   }
 }

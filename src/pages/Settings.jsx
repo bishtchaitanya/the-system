@@ -121,7 +121,7 @@ function DangerModal({ isOpen, onConfirm, onCancel }) {
   )
 }
 
-export default function Settings({ hunter, onReset, onNameChange }) {
+export default function Settings({ hunter, onReset, onNameChange, onLogout, session }) {
   const [showReset, setShowReset] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [newName, setNewName] = useState(hunter.name)
@@ -326,7 +326,65 @@ export default function Settings({ hunter, onReset, onNameChange }) {
           </motion.p>
         )}
       </AnimatePresence>
+      {/* Account */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        style={{
+          background: '#0f172a',
+          border: '1px solid #1e293b',
+          borderRadius: 16,
+          padding: '20px 24px',
+          marginBottom: 16,
+        }}
+      >
+        <p style={{
+          color: '#60a5fa',
+          fontSize: 11,
+          letterSpacing: '0.12em',
+          marginBottom: 16,
+        }}>
+          [ ACCOUNT ]
+        </p>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+        }}>
+          <div>
+            <p style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 500 }}>
+              {session?.email}
+            </p>
+            <p style={{ color: '#475569', fontSize: 12, marginTop: 3 }}>
+              Logged in as {session?.displayName}
+            </p>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={onLogout}
+            style={{
+              padding: '9px 18px',
+              background: 'transparent',
+              border: '1px solid #1e293b',
+              borderRadius: 8,
+              color: '#64748b',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              flexShrink: 0,
+              letterSpacing: '0.08em',
+            }}
+          >
+            LOGOUT
+          </motion.button>
+        </div>
+      </motion.div>
 
+      
       {/* Danger zone */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}

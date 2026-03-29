@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import Stats from './pages/Stats'
 import Settings from './pages/Settings'
 import Raids from './pages/Raids'
+import Auth from './pages/Auth'
 import LoadingScreen from './components/LoadingScreen'
 
 function NavBar({ current, onChange, hasActiveRaid }) {
@@ -79,15 +80,36 @@ function App() {
     addHabit, resetAll, updateHunterName,
     removeHabit, activeRaids, clearedRaids,
     unusedArtifacts, startRaid, useArtifact,
-    raids, artifacts,
+    session, signup, login, logout,
   } = useStore()
+
   const [page, setPage] = useState('dashboard')
   const [loading, setLoading] = useState(true)
+  const [, forceUpdate] = useState(0)
 
   if (loading) {
     return <LoadingScreen onComplete={() => setLoading(false)} />
   }
 
+  // Not logged in — show auth screen
+  if (!session) {
+    return (
+      <Auth
+        onLogin={(email, password) => {
+          const result = login(email, password)
+          if (result?.success) forceUpdate(n => n + 1)
+          return result
+        }}
+        onSignup={(email, password, displayName) => {
+          const result = signup(email, password, displayName)
+          if (result?.success) forceUpdate(n => n + 1)
+          return result
+        }}
+      />
+    )
+  }
+
+  // Logged in but no hunter — show onboarding
   if (!hunter) {
     return <Onboarding onComplete={createHunter} />
   }
@@ -128,6 +150,8 @@ function App() {
           hunter={hunter}
           onReset={resetAll}
           onNameChange={updateHunterName}
+          onLogout={logout}
+          session={session}
         />
       )}
       <NavBar
