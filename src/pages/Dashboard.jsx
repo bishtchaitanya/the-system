@@ -4,6 +4,7 @@ import { getRank, getNextRank } from '../store/useStore'
 import { DIFFICULTY } from '../data/habits'
 import AddHabitPanel from '../components/AddHabitPanel'
 import RankUpModal from '../components/RankUpModal'
+import RaidClearModal from '../components/RaidClearModal'
 
 
 function XPBar({ totalXP }) {
@@ -337,6 +338,7 @@ export default function Dashboard({ hunter, habits, logs, completeHabit, addHabi
   const [popups, setPopups] = useState([])
   const [panelOpen, setPanelOpen] = useState(false)
   const [rankUpData, setRankUpData] = useState(null)
+  const [clearedRaid, setClearedRaid] = useState(null)
   const prevRankRef = useRef(null)
   
 
@@ -373,7 +375,7 @@ useEffect(() => {
       }, 1400)
     }
 
-    // Show bonus XP popup if a raid was cleared
+    // Show bonus XP popup and raid clear modal
     if (bonusXP > 0) {
       const id = Date.now() + 1
       setTimeout(() => {
@@ -382,6 +384,11 @@ useEffect(() => {
           setPopups(prev => prev.filter(p => p.id !== id))
         }, 1400)
       }, 600)
+    }
+
+    // Trigger raid clear modal
+    if (newlyCleared?.length > 0) {
+      setTimeout(() => setClearedRaid(newlyCleared[0]), 1000)
     }
   }
 
@@ -545,6 +552,10 @@ useEffect(() => {
       <RankUpModal
         rank={rankUpData}
         onClose={() => setRankUpData(null)}
+      />
+      <RaidClearModal
+        raid={clearedRaid}
+        onClose={() => setClearedRaid(null)}
       />
     </div>
   )

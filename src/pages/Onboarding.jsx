@@ -59,9 +59,9 @@ const QUESTIONS = [
 ]
 
 function getRankFromXP(xp) {
-  if (xp >= 600) return { rank: 'C', label: 'C-Rank Hunter', color: '#60a5fa' }
-  if (xp >= 300) return { rank: 'D', label: 'D-Rank Hunter', color: '#4ade80' }
-  return { rank: 'E', label: 'E-Rank Hunter', color: '#94a3b8' }
+  if (xp >= 600) return { rank: 'C', label: 'C-Rank Hunter', color: '#60a5fa', startingXP: 2000 }
+  if (xp >= 300) return { rank: 'D', label: 'D-Rank Hunter', color: '#4ade80', startingXP: 500 }
+  return { rank: 'E', label: 'E-Rank Hunter', color: '#94a3b8', startingXP: 0 }
 }
 
 function getStartingHabits(goals) {
@@ -119,15 +119,15 @@ export default function Onboarding({ onComplete }) {
     }
   }
 
-  function handleFinish() {
+function handleFinish() {
     const totalXP = Object.values(answers).reduce((sum, a) => sum + (a.xp || 0), 0)
     const goals = answers.goals?.value || []
     const startingHabits = getStartingHabits(goals)
-    const { rank } = getRankFromXP(totalXP)
+    const { rank, startingXP } = getRankFromXP(totalXP)
 
     onComplete({
       name: answers.name?.value || 'Hunter',
-      startingXP: totalXP,
+      startingXP,
       goals,
       habits: startingHabits,
       title: rank === 'C' ? 'Seasoned Awakened' : rank === 'D' ? 'Awakened One' : 'Newly Awakened',
