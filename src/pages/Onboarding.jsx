@@ -77,13 +77,19 @@ function getStartingHabits(goals) {
     }))
 }
 
-export default function Onboarding({ onComplete }) {
+export default function Onboarding({ onComplete, displayName }) {
   const [step, setStep] = useState(0)
-  const [answers, setAnswers] = useState({})
+  const [answers, setAnswers] = useState(
+    displayName ? { name: { value: displayName, xp: 0 } } : {}
+  )
   const [showVerdict, setShowVerdict] = useState(false)
 
-  const current = QUESTIONS[step]
-  const isLast = step === QUESTIONS.length - 1
+  const questions = displayName
+    ? QUESTIONS.filter(q => q.id !== 'name')
+    : QUESTIONS
+
+  const current = questions[step]
+  const isLast = step === questions.length - 1
 
   function handleChoice(value, xp) {
     setAnswers(prev => ({ ...prev, [current.id]: { value, xp } }))
@@ -199,7 +205,7 @@ function handleFinish() {
       {/* Progress bar */}
       <div style={styles.progressTrack}>
         <motion.div
-          animate={{ width: `${((step + 1) / QUESTIONS.length) * 100}%` }}
+          animate={{ width: `${((step + 1) / questions.length) * 100}%` }}
           style={styles.progressFill}
           transition={{ duration: 0.4 }}
         />
@@ -296,7 +302,7 @@ function handleFinish() {
         </motion.div>
       </AnimatePresence>
 
-      <p style={styles.stepCount}>{step + 1} / {QUESTIONS.length}</p>
+      <p style={styles.stepCount}>{step + 1} / {questions.length}</p>
     </div>
   )
 }

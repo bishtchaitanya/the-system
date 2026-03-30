@@ -111,7 +111,7 @@ function App() {
 
   // Logged in but no hunter — show onboarding
   if (!hunter) {
-    return <Onboarding onComplete={createHunter} />
+    return <Onboarding onComplete={createHunter} displayName={session?.displayName} />
   }
 
   return (
