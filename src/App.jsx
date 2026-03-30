@@ -75,43 +75,53 @@ function NavBar({ current, onChange, hasActiveRaid }) {
 
 function App() {
   const {
-    hunter, habits, logs,
+    session, hunter, habits, logs,
     completeHabit, createHunter,
     addHabit, resetAll, updateHunterName,
     removeHabit, activeRaids, clearedRaids,
     unusedArtifacts, startRaid, useArtifact,
-    session, signup, login, logout,
+    resetHabitLogs, loading,
+    signup, login, logout,
   } = useStore()
 
   const [page, setPage] = useState('dashboard')
-  const [loading, setLoading] = useState(true)
-  const [, forceUpdate] = useState(0)
+  const [appLoading, setAppLoading] = useState(true)
 
-  if (loading) {
-    return <LoadingScreen onComplete={() => setLoading(false)} />
+  // Show loading screen first, then hand off to auth check
+  if (appLoading) {
+    return <LoadingScreen onComplete={() => setAppLoading(false)} />
   }
 
-  // Not logged in — show auth screen
-  if (!session) {
+  // Still checking Supabase session
+  if (loading) {
     return (
-      <Auth
-        onLogin={(email, password) => {
-          const result = login(email, password)
-          if (result?.success) forceUpdate(n => n + 1)
-          return result
-        }}
-        onSignup={(email, password, displayName) => {
-          const result = signup(email, password, displayName)
-          if (result?.success) forceUpdate(n => n + 1)
-          return result
-        }}
-      />
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#0a0a0f',
+      }}>
+        <p style={{ color: '#334155', fontSize: 13, letterSpacing: '0.1em' }}>
+          [ CONNECTING TO THE SYSTEM... ]
+        </p>
+      </div>
     )
   }
 
-  // Logged in but no hunter — show onboarding
+  // Not logged in
+  if (!session) {
+    return <Auth onLogin={login} onSignup={signup} />
+  }
+
+  // Logged in but no hunter profile yet
   if (!hunter) {
-    return <Onboarding onComplete={createHunter} displayName={session?.displayName} />
+    return (
+      <Onboarding
+        onComplete={createHunter}
+        displayName={session?.user?.user_metadata?.name || ''}
+      />
+    )
   }
 
   return (
@@ -134,8 +144,11 @@ function App() {
           activeRaids={activeRaids}
           clearedRaids={clearedRaids}
           unusedArtifacts={unusedArtifacts}
+          habits={habits}
+          logs={logs}
           startRaid={startRaid}
           useArtifact={useArtifact}
+          resetHabitLogs={resetHabitLogs}
         />
       )}
       {page === 'stats' && (

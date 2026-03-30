@@ -198,14 +198,46 @@ function BossSelectCard({ boss, type, onStart, alreadyActive }) {
     </motion.div>
   )
 }
-
-function ArtifactCard({ artifact }) {
+function ArtifactCard({ artifact, habits, logs, onUse, onSealHabit, onResetHabit }) {
   const def = ARTIFACTS[artifact.id]
   if (!def) return null
   const rarityColor = RARITY_COLORS[def.rarity]
+  const [expanded, setExpanded] = useState(false)
+  const [confirmed, setConfirmed] = useState(false)
+
+  const today = new Date().toDateString()
+  const completedToday = logs
+    .filter(l => new Date(l.completedAt).toDateString() === today)
+    .map(l => l.habitId)
+
+  const incompletHabits = habits.filter(h => !completedToday.includes(h.id))
+
+  function handleSimpleUse() {
+    if (confirmed) {
+      onUse(artifact.instanceId)
+      setConfirmed(false)
+    } else {
+      setConfirmed(true)
+      setTimeout(() => setConfirmed(false), 3000)
+    }
+  }
+
+  function handleSeal(habitId) {
+    onSealHabit(artifact.instanceId, habitId)
+    setExpanded(false)
+  }
+
+  function handleReset(habitId) {
+    onResetHabit(artifact.instanceId, habitId)
+    setExpanded(false)
+  }
+
+  const needsPicker = artifact.id === 'HUNTERS_SEAL' || artifact.id === 'ELIXIR_OF_FORGETTING'
+  const isGateFragment = artifact.id === 'GATE_FRAGMENT'
 
   return (
     <motion.div
+      layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       style={{
@@ -213,40 +245,182 @@ function ArtifactCard({ artifact }) {
         border: `1px solid ${rarityColor}44`,
         borderRadius: 12,
         padding: '16px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
+        overflow: 'hidden',
       }}
     >
-      <span style={{ fontSize: 28 }}>{def.icon}</span>
-      <div style={{ flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-          <p style={{ color: '#f1f5f9', fontSize: 14, fontWeight: 600 }}>
-            {def.name}
+      {/* Main row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <span style={{ fontSize: 28, flexShrink: 0 }}>{def.icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+            <p style={{ color: '#f1f5f9', fontSize: 14, fontWeight: 600 }}>
+              {def.name}
+            </p>
+            <span style={{
+              padding: '2px 8px',
+              background: rarityColor + '22',
+              border: `1px solid ${rarityColor}44`,
+              borderRadius: 20,
+              color: rarityColor,
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+            }}>
+              {def.rarity.toUpperCase()}
+            </span>
+          </div>
+          <p style={{ color: '#64748b', fontSize: 12 }}>{def.description}</p>
+          <p style={{ color: '#334155', fontSize: 11, marginTop: 3 }}>
+            From: {artifact.fromRaid}
           </p>
-          <span style={{
-            padding: '2px 8px',
-            background: rarityColor + '22',
-            border: `1px solid ${rarityColor}44`,
-            borderRadius: 20,
-            color: rarityColor,
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: '0.08em',
-          }}>
-            {def.rarity.toUpperCase()}
-          </span>
         </div>
-        <p style={{ color: '#64748b', fontSize: 12 }}>{def.description}</p>
-        <p style={{ color: '#334155', fontSize: 11, marginTop: 4 }}>
-          From: {artifact.fromRaid}
-        </p>
+
+        {/* Action button */}
+        {!isGateFragment && (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => needsPicker ? setExpanded(e => !e) : handleSimpleUse()}
+            style={{
+              padding: '8px 14px',
+              background: confirmed ? rarityColor + '33' : 'transparent',
+              border: `1px solid ${confirmed ? rarityColor : '#334155'}`,
+              borderRadius: 8,
+              color: confirmed ? rarityColor : '#64748b',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              flexShrink: 0,
+              letterSpacing: '0.06em',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {needsPicker
+              ? (expanded ? 'CANCEL' : 'USE')
+              : confirmed ? 'CONFIRM?' : 'USE'}
+          </motion.button>
+        )}
+
+        {isGateFragment && (
+          <span style={{
+            color: rarityColor,
+            fontSize: 12,
+            fontWeight: 700,
+            flexShrink: 0,
+          }}>
+            COLLECT 3
+          </span>
+        )}
       </div>
+
+      {/* Habit picker for Hunter's Seal and Elixir */}
+      <AnimatePresence>
+        {expanded && needsPicker && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div style={{
+              marginTop: 14,
+              paddingTop: 14,
+              borderTop: '1px solid #1e293b',
+            }}>
+              <p style={{
+                color: '#64748b',
+                fontSize: 12,
+                marginBottom: 10,
+                letterSpacing: '0.06em',
+              }}>
+                {artifact.id === 'HUNTERS_SEAL'
+                  ? 'SELECT HABIT TO COMPLETE:'
+                  : 'SELECT HABIT TO RESET:'}
+              </p>
+
+              {artifact.id === 'HUNTERS_SEAL' && incompletHabits.length === 0 && (
+                <p style={{ color: '#475569', fontSize: 13 }}>
+                  All habits already completed today.
+                </p>
+              )}
+
+              {artifact.id === 'ELIXIR_OF_FORGETTING' && habits.length === 0 && (
+                <p style={{ color: '#475569', fontSize: 13 }}>
+                  No habits to reset.
+                </p>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {artifact.id === 'HUNTERS_SEAL' &&
+                  incompletHabits.map(habit => (
+                    <motion.button
+                      key={habit.id}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      onClick={() => handleSeal(habit.id)}
+                      style={{
+                        padding: '10px 14px',
+                        background: '#1e293b',
+                        border: '1px solid #334155',
+                        borderRadius: 8,
+                        color: '#e2e8f0',
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        textAlign: 'left',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span>{habit.name}</span>
+                      <span style={{ color: '#475569', fontSize: 11 }}>
+                        mark complete →
+                      </span>
+                    </motion.button>
+                  ))
+                }
+
+                {artifact.id === 'ELIXIR_OF_FORGETTING' &&
+                  habits.map(habit => (
+                    <motion.button
+                      key={habit.id}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      onClick={() => handleReset(habit.id)}
+                      style={{
+                        padding: '10px 14px',
+                        background: '#1e293b',
+                        border: '1px solid #334155',
+                        borderRadius: 8,
+                        color: '#e2e8f0',
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        textAlign: 'left',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span>{habit.name}</span>
+                      <span style={{ color: '#ef4444', fontSize: 11 }}>
+                        reset logs →
+                      </span>
+                    </motion.button>
+                  ))
+                }
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
-
-export default function Raids({ hunter, activeRaids, clearedRaids, unusedArtifacts, startRaid }) {
+export default function Raids({ hunter, activeRaids, clearedRaids, unusedArtifacts, habits, logs, startRaid, useArtifact, resetHabitLogs }) {
   const rank = getRank(hunter.totalXP)
   const [tab, setTab] = useState('active')
 
@@ -471,7 +645,18 @@ export default function Raids({ hunter, activeRaids, clearedRaids, unusedArtifac
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {unusedArtifacts.map(a => (
-                <ArtifactCard key={a.instanceId} artifact={a} />
+                <ArtifactCard
+                  key={a.instanceId}
+                  artifact={a}
+                  habits={habits}
+                  logs={logs}
+                  onUse={useArtifact}
+                  onSealHabit={(instanceId, habitId) => useArtifact(instanceId, habitId)}
+                  onResetHabit={(instanceId, habitId) => {
+                    useArtifact(instanceId)
+                    resetHabitLogs(habitId)
+                  }}
+                />
               ))}
             </div>
           )}

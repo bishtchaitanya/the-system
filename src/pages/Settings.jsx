@@ -355,10 +355,10 @@ export default function Settings({ hunter, onReset, onNameChange, onLogout, sess
         }}>
           <div>
             <p style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 500 }}>
-              {session?.email}
+              {session?.user?.email}
             </p>
             <p style={{ color: '#475569', fontSize: 12, marginTop: 3 }}>
-              Logged in as {session?.displayName}
+              Logged in as {hunter?.name}
             </p>
           </div>
           <motion.button
